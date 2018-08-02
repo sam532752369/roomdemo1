@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import io.swagger.annotations.*;
 /**
  *code is far away from bug with the animal protecting
- *　　
  *
  *   @description : Msg 控制器
  *   ---------------------------------
