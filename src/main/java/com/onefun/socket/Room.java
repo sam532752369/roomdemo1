@@ -16,6 +16,26 @@ public class Room {
     private Player player1 = null;
     private Player player2 = null;
     private final static Logger logger = LoggerFactory.getLogger(RoomWebSocket.class);
+    private Room(){}
+
+    public Room(Player p1 ,Player p2){
+        this.player1 = p1;
+        this.player2 = p2;
+    }
+
+    public static Room newRoom(){
+        return new Room();
+    }
+
+    public Room setPlayer1(Player player1) {
+        this.player1 = player1;
+        return this;
+    }
+
+    public Room setPlayer2(Player player2) {
+        this.player2 = player2;
+        return this;
+    }
 
     public String getRoomToken() {
         return roomToken;
@@ -23,11 +43,6 @@ public class Room {
 
     public void setRoomToken(String roomToken) {
         this.roomToken = roomToken;
-    }
-
-    public Room(Player p1 ,Player p2){
-        this.player1 = p1;
-        this.player2 = p2;
     }
 
     public Player getPlayer1() {
@@ -59,20 +74,6 @@ public class Room {
             if(player2.getSession().isOpen()){
                 player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));//异步
             }
-            logger.info("房间销毁");
-
-//                try {
-//
-//                } catch (Exception e) {
-////                   player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
-//                    logger.error("发送消息失败:"+e.getMessage());
-//                }
-//                try {
-//                    player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));//异步
-//                } catch (Exception e) {
-////                    player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
-//                    logger.error("发送消息失败:"+e.getMessage());
-//                }
         }
     }
     /**
@@ -98,8 +99,8 @@ public class Room {
         }
     }
 
-    public void destroyRoom(){
-
-    }
+//    public void destroyRoom(){
+//
+//    }
 
 }

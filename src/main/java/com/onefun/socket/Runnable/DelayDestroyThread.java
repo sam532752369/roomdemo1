@@ -14,9 +14,9 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class DelayDestroyThread implements Runnable{
     //房间队列
-    private static Map<String,Room> roomMap = new ConcurrentHashMap<String,Room>();
+    private static Map<String,Room> roomMap = null;
     //正在对战玩家队列 loginid-player
-    private static Map<String,Player> playingMap = new ConcurrentHashMap<String,Player>();
+    private static Map<String,Player> playingMap = null;
     private String roomToken;
     private long delayTime = 5000;//默认5秒
 

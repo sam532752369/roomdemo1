@@ -3,6 +3,7 @@ package com.onefun.socket;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.onefun.socket.Runnable.DelayDestroyThread;
+import com.onefun.socket.Runnable.MatchingThread;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -31,9 +32,9 @@ public class RoomWebSocket {
 //    //concurrent包的线程安全Set，用来存放每个客户端对应的MyWebSocket对象。
 //    private static CopyOnWriteArraySet<RoomWebSocket> webSocketSet = new CopyOnWriteArraySet<RoomWebSocket>();
     //在线人数 loginId-Player
-    private static Map<String,Player> sessionPool = new ConcurrentHashMap<String,Player>();
-    //保存 sessionid - loginid
-    private static Map<String,String> sessionIds = new ConcurrentHashMap<String,String>();
+    private static Map<String,Player> onlinePlayerMap = new ConcurrentHashMap<String,Player>();
+//    //保存 sessionid - loginid
+//    private static Map<String,String> sessionIds = new ConcurrentHashMap<String,String>();
     //等待队列 loginid-Player
     private static Map<String,Player> waitList = new ConcurrentHashMap<String,Player>();
     //房间队列
@@ -56,26 +57,33 @@ public class RoomWebSocket {
         return playingMap;
     }
 
+    public static Map<String, Player> getOnlinePlayerMap() {
+        return onlinePlayerMap;
+    }
+
+    public static Map<String, Player> getWaitList() {
+        return waitList;
+    }
+
     /**
      * 连接建立成功调用的方法
-     * 添加进需要匹配的set
      * */
     @OnOpen
     public void onOpen(Session session,@PathParam(value="loginId")String loginId) {
-        System.out.println("登陆者："+loginId);
+        logger.debug("登陆者："+loginId);
         this.session = session;
-        if(sessionPool.get(loginId)!=null){
+        if(onlinePlayerMap.get(loginId)!=null){
 //            System.out.println("已存在");
-            sessionPool.put(loginId,Player.newPlayer().setLoginId(loginId).setSession(session));
+            onlinePlayerMap.put(loginId,Player.newPlayer().setLoginId(loginId).setSession(session));
             waitList.remove(loginId);
         }else{
 //            System.out.println("新增");
-            sessionPool.put(loginId, Player.newPlayer().setLoginId(loginId).setSession(session));
-            sessionIds.put(session.getId(), loginId);
+            onlinePlayerMap.put(loginId, Player.newPlayer().setLoginId(loginId).setSession(session));
+//            sessionIds.put(session.getId(), loginId);
         }
         //判断是否正在对战
         if(playingMap.get(loginId)!=null){
-            System.out.println(loginId+"玩家正在游戏中");
+            logger.debug(loginId+"玩家正在游戏中");
             Room r;
             synchronized (roomMap){
                 String roomToken = playingMap.get(loginId).getRoomToken();
@@ -106,58 +114,25 @@ public class RoomWebSocket {
 
             r.sendMessage(sr);
         }else{
-            try {
-                //进入等待队列，自动匹配
-                if(waitList.size()%2==0){
-                    SocketResult sr = SocketResult.newSocketResult().setState("2").setData("自动匹配。。。");
-                    sendMessage(this.session,JSON.toJSONString(sr));
-                    Player p = Player.newPlayer().setSession(session).setLoginId(loginId);
-                    waitList.put(loginId,p);
-                    System.out.println(JSON.toJSONString(sr));
-                }else{
-                    if(true){
-//                        System.out.println("waitList长度："+waitList.size());
-//                        System.out.println("roomList长度："+roomMap.size());
-                        Player p1 = Player.newPlayer().setSession(this.session).setLoginId(loginId);
-                        //根据匹配法则获取对手
-                        Player p2;
-                        //从等待队列中获取玩家
-                        synchronized(waitList){
-                            String pipeikey = (String)waitList.keySet().toArray()[0];
-                            p2 = waitList.get(pipeikey);
-                            waitList.remove(pipeikey);
-                        }
-                        Room a = new Room(p1,p2);
-
-                        //房间token
-                        String roomToken = UUID.randomUUID().toString();  //转化为String对象
-                        System.out.println(roomToken);   //打印UUID
-                        roomToken = roomToken.replace("-", ""); //因为UUID本身为32位只是生成时多了“-”，所以将它们去点就可
-                        System.out.println(roomToken);
-                        roomMap.put(roomToken,a);
-//                        this.roomToken = roomToken;
-                        p1.setRoomToken(roomToken);
-                        p2.setRoomToken(roomToken);
-                        a.setRoomToken(roomToken);
-                        //放进正在游戏中map
-                        playingMap.put(p1.getLoginId(),p1);
-                        playingMap.put(p2.getLoginId(),p2);
-
-//                        SocketResult sr = new SocketResult("1",roomToken,"匹配成功");
-                        a.sendMessage("3","匹配成功");
-//                        this.session.getAsyncRemote().sendText(JSON.toJSONString(sr));
-//                        .getAsyncRemote().sendText(JSON.toJSONString(sr));
-//                        System.out.println("匹配成功");
-
-                        return;
-                    }
-                }
-
-            } catch (IOException e) {
-                System.out.println("IO异常");
-                e.printStackTrace();
-                logger.error("发送消息失败:"+e.getMessage());
-            }
+//            try {
+//                //进入等待队列，自动匹配
+//                SocketResult sr = SocketResult.newSocketResult().setState("2").setData("自动匹配。。。");
+//                sendMessage(session,JSON.toJSONString(sr));
+//                Player p = Player.newPlayer().setSession(session).setLoginId(loginId);
+//                waitList.put(loginId,p);
+//                logger.debug(JSON.toJSONString(sr));
+//                //调用匹配线程
+//                //另起线程判断 延迟断线时间，让玩家重连
+//                MatchingThread mt =new MatchingThread();
+//                mt.setRoomMap(roomMap);
+//                mt.setWaitList(waitList);
+//                mt.setPlayingMap(playingMap);
+//                new Thread(mt).start();
+//            } catch (IOException e) {
+//                System.out.println("IO异常");
+//                e.printStackTrace();
+//                logger.error("发送消息失败:"+e.getMessage());
+//            }
         }
 
 
@@ -171,6 +146,7 @@ public class RoomWebSocket {
     public void onClose() {
           System.out.println("关闭连接");
           waitList.remove(loginId);
+          onlinePlayerMap.remove(loginId);
         if(playingMap.get(loginId)!=null){
             //另起线程判断 延迟断线时间，让玩家重连
             DelayDestroyThread ddt =new DelayDestroyThread();
@@ -203,7 +179,6 @@ public class RoomWebSocket {
     public void onMessage(String message, Session session) {
         System.out.println("来自客户端的消息:" + message);
         ObjectMapper om = new ObjectMapper();
-        //解析出错
         SocketResult sr = null;
         try {
             sr = om.readValue(message,SocketResult.class);
@@ -228,10 +203,7 @@ public class RoomWebSocket {
                     logger.error("发送消息失败:"+e.getMessage());
                 }
             }
-
-
         }
-
     }
 
     /**
@@ -254,8 +226,8 @@ public class RoomWebSocket {
      * 群发自定义消息
      * */
     public static void sendInfo(String message){
-        for (String s : sessionPool.keySet()) {
-                sessionPool.get(s).getSession().getAsyncRemote().sendText(message);//异步
+        for (String s : onlinePlayerMap.keySet()) {
+            onlinePlayerMap.get(s).getSession().getAsyncRemote().sendText(message);//异步
                 continue;
         }
     }
