@@ -66,37 +66,38 @@ public class Room {
      * */
     @SuppressWarnings(value = "all")
     public void sendMessage(String state , String message)  {
-        if(player1!=null&&player2!=null){
             SocketResult sr = SocketResult.newSocketResult().setState(state).setRoomToken(roomToken).setData(message);
-            if(player1.getSession().isOpen()){
+            if(player1!=null&&player1.getSession().isOpen()){
                 player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));//异步
             }
-            if(player2.getSession().isOpen()){
+            if(player2!=null&&player2.getSession().isOpen()){
                 player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));//异步
             }
-        }
     }
     /**
      * 房间内传输信息，手动构建返回集
      * */
     @SuppressWarnings(value="all")
     public void sendMessage(SocketResult data)  {
-        if(player1!=null&&player2!=null){
-            try {
-                player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
-            } catch (Exception e) {
-                player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
-                e.printStackTrace();
-                logger.error("发送消息失败:"+e.getMessage());
-            }
-            try {
-                player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
-            } catch (Exception e) {
-                player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
-                e.printStackTrace();
-                logger.error("发送消息失败:"+e.getMessage());
-            }
+        if(player1!=null&&player1.getSession().isOpen()){
+            player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
         }
+        if(player2!=null&&player2.getSession().isOpen()){
+            player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
+        }
+//            try {
+//                player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
+//            } catch (Exception e) {
+//                player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
+//                logger.error("发送消息失败:"+e.getMessage());
+//            }
+//            try {
+//                player2.getSession().getAsyncRemote().sendText(JSON.toJSONString(data));//异步
+//            } catch (Exception e) {
+//                player1.getSession().getAsyncRemote().sendText(JSON.toJSONString(SocketResult.newSocketResult().setState("4").setRoomToken(roomToken).setData("对方正在丢失")));//异步
+//                logger.error("发送消息失败:"+e.getMessage());
+//            }
+
     }
 
 //    public void destroyRoom(){

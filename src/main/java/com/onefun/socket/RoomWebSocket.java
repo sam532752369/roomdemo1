@@ -107,9 +107,9 @@ public class RoomWebSocket {
             }
             SocketResult sr;
             if(r==null){
-                 sr = SocketResult.newSocketResult().setState("5").setData("房间已销毁-"+roomToken);
+                 sr = SocketResult.newSocketResult().setState("5").setLoginId(loginId).setData("房间已销毁-"+roomToken);
             }else{
-                sr = SocketResult.newSocketResult().setState("1").setData("重连成功").setRoomToken(r.getRoomToken());
+                sr = SocketResult.newSocketResult().setState("1").setLoginId(loginId).setData("重连成功").setRoomToken(r.getRoomToken());
             }
 
             r.sendMessage(sr);
@@ -185,17 +185,19 @@ public class RoomWebSocket {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        String loginId = null;
         if(sr.getLoginId()!=null){
             this.loginId = sr.getLoginId();
+            loginId = sr.getLoginId();
         }
         if(sr.getRoomToken()!=null){
             this.roomToken = sr.getRoomToken();
             Room a = roomMap.get(sr.getRoomToken());
             if(a!=null){
-                SocketResult sr1 = SocketResult.newSocketResult().setState("1").setRoomToken(roomToken).setData(sr.getData());
+                SocketResult sr1 = SocketResult.newSocketResult().setState("1").setRoomToken(roomToken).setLoginId(loginId).setData(sr.getData());
                 a.sendMessage(sr1);
             }else{
-                SocketResult sr1 = SocketResult.newSocketResult().setState("1").setRoomToken(roomToken).setData("房间已销毁，连接已断开，请重新连接");
+                SocketResult sr1 = SocketResult.newSocketResult().setState("1").setRoomToken(roomToken).setLoginId(loginId).setData("房间已销毁，连接已断开，请重新连接");
                 this.session.getAsyncRemote().sendText(JSON.toJSONString(sr1));
                 try {
                     this.session.close();
