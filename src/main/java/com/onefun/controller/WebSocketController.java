@@ -43,15 +43,22 @@ public class WebSocketController {
     }
 
     @PostMapping(value = "/destroyRoom")
-    @ApiOperation(value="通过roomToken销毁房间", notes="通过roomToken销毁房间")
-    @ApiImplicitParam(name = "roomToken", paramType="query", value = "房间号", dataType="String", required = true)
-    public void destroyRoom(@RequestParam String roomToken) {
+    @ApiOperation(value="通过roomToken销毁房间/退出游戏", notes="通过roomToken销毁房间")
+    @ApiImplicitParam(name = "roomToken", paramType="from", value = "房间号", dataType="String", required = true)
+    public void destroyRoom(String roomToken) {
         Map<String,Room> rM  = RoomWebSocket.getRoomMap();
         Map<String,Player> pM  = RoomWebSocket.getPlayingMap();
         Room room = rM.remove(roomToken);
-        room.sendMessage("5","房间销毁");
-        pM.remove(room.getPlayer1().getLoginId());
-        pM.remove(room.getPlayer2().getLoginId());
+        if(room!=null) {//防止同时调用报错
+            logger.debug("房间销毁");
+            room.sendMessage("5", "房间销毁，退出游戏");
+            if(room.getPlayer1()!=null){
+                pM.remove(room.getPlayer1().getLoginId());
+            }
+            if(room.getPlayer2()!=null){
+                pM.remove(room.getPlayer2().getLoginId());
+            }
+        }
         //方便垃圾回收
         room = null;
     }
@@ -59,7 +66,7 @@ public class WebSocketController {
     @PostMapping(value = "/actionPalyer")
     @ApiOperation(value="操作玩家", notes="操作玩家")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "roomToken",  value = "房间号",paramType="query", dataType="String", required = true),
+            @ApiImplicitParam(name = "roomToken",  value = "房间号",paramType="from", dataType="String", required = true),
             @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "form",dataType = "string", required = true)
     })
     public void actionPalyer(@RequestParam String roomToken ,@RequestParam String loginId) {
@@ -68,15 +75,17 @@ public class WebSocketController {
     @PostMapping(value = "/challengePalyer")
     @ApiOperation(value="约战玩家", notes="约战玩家")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "roomToken",  value = "房间号",paramType="query", dataType="String"),
-            @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "query    ",dataType = "string", required = true)
+            @ApiImplicitParam(name = "roomToken",  value = "房间号",paramType="from", dataType="String"),
+            @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "form",dataType = "String", required = true)
     })
-    public void challengePalyer(@RequestParam String roomToken ,@RequestParam String loginId) {
+    public void challengePalyer( String roomToken , String loginId) {
+        logger.debug(roomToken+"====="+loginId);
         Map<String,Room> rM  = RoomWebSocket.getRoomMap();
         Map<String,Player> pM  = RoomWebSocket.getOnlinePlayerMap();
+        Map<String,Player> playingM  = RoomWebSocket.getPlayingMap();
         Player p = pM.get(loginId);
         p.setRoomToken(roomToken);
-        if("null".equals(roomToken)){//发送邀请。创建房间
+        if(roomToken==null||"null".equals(roomToken)){//发送邀请。创建房间
             //房间token
             roomToken = UUID.randomUUID().toString();  //转化为String对象
             roomToken = roomToken.replace("-", ""); //因为UUID本身为32位只是生成时多了“-”，所以将它们去点就可
@@ -86,11 +95,19 @@ public class WebSocketController {
             rM.put(roomToken,a);
             SocketResult sr = SocketResult.newSocketResult().setState("2").setRoomToken(roomToken).setLoginId(loginId).setData("匹配中");
             p.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));
+            playingM.put(loginId,p);
         }else{//接受邀请，进入房间
             Room a = rM.get(roomToken);
             if(a!=null){
-                a.setPlayer2(p);
-                a.sendMessage("3","匹配成功");
+                if(a.getPlayer2()==null){
+                    a.setPlayer2(p);
+                    a.sendMessage("3","匹配成功");
+                    playingM.put(loginId,p);
+                }else{
+                    SocketResult sr = SocketResult.newSocketResult().setState("6").setRoomToken(roomToken).setLoginId(loginId).setData("房间已满人。");
+                    p.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));
+                }
+
             }else{
                 SocketResult sr = SocketResult.newSocketResult().setState("5").setRoomToken(roomToken).setLoginId(loginId).setData("房间已销毁。");
                 p.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));
@@ -101,13 +118,13 @@ public class WebSocketController {
     @PostMapping(value = "/challenge")
     @ApiOperation(value="随机匹配", notes="随机匹配")
     @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "form",dataType = "string", required = true)
-    public void challenge(@RequestParam String loginId) {
+    public void challenge(String loginId) {
         Map<String,Player> wM  = RoomWebSocket.getWaitList();
         Map<String,Player> pM  = RoomWebSocket.getOnlinePlayerMap();
         Map<String,Player> playingM  = RoomWebSocket.getPlayingMap();
         Player p = pM.get(loginId);
         //进入等待队列，自动匹配
-        SocketResult sr = SocketResult.newSocketResult().setState("2").setData("自动匹配。。。");
+        SocketResult sr = SocketResult.newSocketResult().setState("2").setLoginId(loginId).setData("自动匹配。。。");
         p.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));
         wM.put(loginId,p);
         logger.debug(JSON.toJSONString(sr));
@@ -120,65 +137,35 @@ public class WebSocketController {
         new Thread(mt).start();
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /*
-    @RequestMapping(value = "/admin")
-    public String admin(Model model) {
-        int num = socketServer.getOnlineNum();
-        String str = socketServer.getOnlineUsers();
-        model.addAttribute("num",num);
-        model.addAttribute("users",str);
-        return "admin";
+    @PostMapping(value = "/cancleChallenge")
+    @ApiOperation(value="取消匹配", notes="取消匹配")
+    @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "form",dataType = "string", required = true)
+    public void cancleChallenge(String loginId) {
+        Map<String,Player> wM  = RoomWebSocket.getWaitList();
+        Map<String,Room> rM  = RoomWebSocket.getRoomMap();
+        Player p = wM.remove(loginId);
+        if(p==null){
+            Map<String,Player> onlineM  = RoomWebSocket.getOnlinePlayerMap();
+            p = onlineM.get(loginId);
+        }
+        logger.debug(p.getRoomToken()==null?"":p.getRoomToken());
+        Room room = rM.remove(p.getRoomToken()==null?"":p.getRoomToken());
+        SocketResult sr = SocketResult.newSocketResult().setState("7").setLoginId(loginId).setData("取消匹配");
+        if(room!=null){
+            room.sendMessage(sr);
+        }else {
+            p.getSession().getAsyncRemote().sendText(JSON.toJSONString(sr));
+        }
     }
 
-    *//**
-     * 个人信息推送
-     * @return
-     *//*
-    @RequestMapping("sendmsg")
-    @ResponseBody
-    public String sendmsg(String msg,String username){
-        //第一个参数 :msg 发送的信息内容
-        //第二个参数为用户长连接传的用户人数
-        String [] persons = username.split(",");
-        SocketServer.SendMany(msg,persons);
-        return "success";
-    }
+    @PostMapping(value = "/exitRoom")
+    @ApiOperation(value="退出房间", notes="退出房间")
+    @ApiImplicitParam(name = "loginId",value = "用户id",paramType = "form",dataType = "string", required = true)
+    public void exitRoom(String loginId) {
+        Map<String,Player> playingM  = RoomWebSocket.getPlayingMap();
+        Map<String,Room> rM  = RoomWebSocket.getRoomMap();
+        Player p = playingM.remove(loginId);
+        Room room = rM.get(p.getRoomToken());
 
-    *//**
-     * 推送给所有在线用户
-     * @return
-     *//*
-    @RequestMapping("sendAll")
-    @ResponseBody
-    public String sendAll(String msg){
-        SocketServer.sendAll(msg);
-        return "success";
     }
-
-    *//**
-     * 获取当前在线用户
-     * @return
-     *//*
-    @RequestMapping("webstatus")
-    public String webstatus(){
-        //当前用户个数
-        int count = SocketServer.getOnlineNum();
-        //当年用户的username
-        SocketServer.getOnlineUsers();
-        return "tongji";
-    }*/
 }
